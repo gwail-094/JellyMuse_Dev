@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>MinimumOSVersion</key>
+    <string>15.0</string>
+
+    <key>NSAppleMusicUsageDescription</key>
+    <string>This app requires access to your Apple Music library to play songs and manage playback.</string>
+
+    <key>NSAppTransportSecurity</key>
+    <dict>
+        <!-- Keep arbitrary loads off globally -->
+        <key>NSAllowsArbitraryLoads</key>
+        <false/>
+        <!-- Allow in WKWebView if you ever embed one -->
+        <key>NSAllowsArbitraryLoadsInWebContent</key>
+        <true/>
+        <!-- Allow insecure media streams (AVPlayer) -->
+        <key>NSAllowsArbitraryLoadsForMedia</key>
+        <true/>
+        <!-- Per-domain exception for your LAN server -->
+        <key>NSExceptionDomains</key>
+        <dict>
+            <key>192.168.1.169</key>
+            <dict>
+                <key>NSExceptionAllowsInsecureHTTPLoads</key>
+                <true/>
+                <key>NSExceptionRequiresForwardSecrecy</key>
+                <false/>
+                <key>NSIncludesSubdomains</key>
+                <true/>
+                <key>NSTemporaryExceptionAllowsInsecureHTTPLoads</key>
+                <true/>
+            </dict>
+        </dict>
+    </dict>
+
+    <key>UIBackgroundModes</key>
+    <array>
+        <string>audio</string>
+        <string>fetch</string>
+        <string>external-accessory</string>
+    </array>
+
+    <key>LSApplicationQueriesSchemes</key>
+    <array>
+        <string>youtubemusic</string>
+        <string>youtube</string>
+    </array>
+</dict>
+</plist>
