@@ -451,6 +451,7 @@ struct AlbumDetailView: View {
 
                     VideoPlayerView(
                         player: heroPlayer,
+                        gravity: .resizeAspectFill,
                         onReady: { videoReadyPoster = true; heroReady = true },
                         onFail:  { videoReadyPoster = false }
                     )
