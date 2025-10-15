@@ -144,6 +144,7 @@ struct ArtistDetailView: View {
                         if animatedArtistURL != nil {
                             VideoPlayerView(
                                 player: artistPlayer,
+                                gravity: .resizeAspectFill,
                                 onReady: { /* no-op: no crossfade needed */ },
                                 onFail:  { /* optional logging */ }
                             )
