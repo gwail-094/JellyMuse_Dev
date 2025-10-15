@@ -245,6 +245,7 @@ struct PlaylistDetailView: View {
                     // Video
                     VideoPlayerView(
                         player: heroPlayer,
+                        gravity: .resizeAspectFill,
                         onReady: {
                             DispatchQueue.main.async {
                                 videoReadyPoster = true
