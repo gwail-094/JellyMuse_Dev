@@ -305,6 +305,7 @@ struct UnifiedControlsView: View {
     let showingLyrics: Bool
     let showingQueue: Bool
     let artworkURL: URL?
+    let controlsVisible: Bool
     @Binding var volume: Float
     let progressBinding: Binding<Double>
     let volumeBinding: Binding<Double>
@@ -321,8 +322,6 @@ struct UnifiedControlsView: View {
     let goToArtist: () -> Void
     let download: () -> Void
     
-    // NOTE: Slab-related properties have been removed from here.
-
     private let reservedTitleRowHeight: CGFloat = 56
     var badgeHeight: CGFloat = 17
 
@@ -352,9 +351,14 @@ struct UnifiedControlsView: View {
                     titleAndButtonsContent
                         .opacity(titleReveal)
                         .offset(y: (1 - titleReveal) * -18)
+                        .offset(y: controlsVisible ? 0 : 20)  // Faster slide
+                        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: controlsVisible)  // Faster
                         .animation(.snappy(duration: 0.28, extraBounce: 0), value: titleReveal)
                 }
+                
                 lowerControls
+                    .offset(y: controlsVisible ? 0 : 40)  // Slower slide (more offset = slower visual speed)
+                    .animation(.spring(response: 0.50, dampingFraction: 0.85), value: controlsVisible)  // Slower
             }
             .padding(.horizontal, 12)
             .padding(.top, 20)
@@ -363,7 +367,6 @@ struct UnifiedControlsView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
             .offset(y: -contentYOffset)
         }
-        // NOTE: The .background modifier that created the slab has been removed.
         .contentShape(BottomSlab(height: panelAreaHeight))
     }
 
@@ -435,131 +438,110 @@ struct UnifiedControlsView: View {
 
     private var lowerControls: some View {
         VStack(spacing: 20) {
-            // MARK: EDIT 3 - START
+            // MARK: 1. Progress Slider
             VStack(spacing: 0) {
-                // Elastic progress slider with built-in time labels
                 ElasticSlider(
                     value: progressBinding,
                     in: 0...(player.duration.isFinite && player.duration > 0 ? player.duration : 1),
-                    leadingLabel: {
-                        Text(timeString(player.currentTime))
-                            .font(.caption.monospacedDigit())
-                            .padding(.top, 11)
-                    },
-                    trailingLabel: {
-                        Text("-\(timeString(max(0, player.duration - player.currentTime)))")
-                            .font(.caption.monospacedDigit())
-                            .padding(.top, 11)
-                    }
+                    leadingLabel: { Text(timeString(player.currentTime)).font(.caption.monospacedDigit()).padding(.top, 11) },
+                    trailingLabel: { Text("-\(timeString(max(0, player.duration - player.currentTime)))").font(.caption.monospacedDigit()).padding(.top, 11) }
                 )
-                .sliderStyle(.playbackProgress)
-                .frame(height: 56)
-                .padding(.horizontal, 16)
-                // quality badge centered, sitting just under the track
+                .sliderStyle(.playbackProgress).frame(height: 56).padding(.horizontal, 16)
                 .overlay(alignment: .bottom) {
                     Group {
                         if let badge = qualityBadgeAsset {
-                            Image(badge.name)
-                                .resizable()
-                                .scaledToFit()
-                                .frame(height: badgeHeight)
-                                .accessibilityLabel(Text(badge.label))
-                                .transition(.opacity)
+                            Image(badge.name).resizable().scaledToFit().frame(height: badgeHeight).accessibilityLabel(Text(badge.label)).transition(.opacity)
                         }
                     }
                     .offset(y: -8)
                 }
             }
-            // MARK: EDIT 3 - END
+            .offset(y: controlsVisible ? 0 : 30)
+            .animation(
+                controlsVisible
+                    ? .spring(response: 0.35, dampingFraction: 0.85).delay(0.06) // MODIFIED: Tighter delay
+                    : .spring(response: 0.35, dampingFraction: 0.90),      // MODIFIED: Closer duration
+                value: controlsVisible
+            )
             
-            // Transport
+            // MARK: 2. Transport buttons
             HStack(spacing: 48) {
-                PlayerButton(
-                    label: {
-                        Image(systemName: "backward.fill")
-                            .font(.system(size: 24, weight: .semibold))
-                    },
-                    onPressed: { onRevealAndReschedule(); AudioPlayer.shared.previousTrack() }
-                )
-
-                PlayerButton(
-                    label: {
-                        Image(systemName: player.isPlaying ? "pause.fill" : "play.fill")
-                            .font(.system(size: 38, weight: .regular))
-                            .contentTransition(.symbolEffect(.replace))
-                    },
-                    onPressed: { onRevealAndReschedule(); AudioPlayer.shared.togglePlayPause() }
-                )
-
-                PlayerButton(
-                    label: {
-                        Image(systemName: "forward.fill")
-                            .font(.system(size: 24, weight: .semibold))
-                    },
-                    onPressed: { onRevealAndReschedule(); AudioPlayer.shared.nextTrack() }
-                )
+                PlayerButton(label: { Image(systemName: "backward.fill").font(.system(size: 24, weight: .semibold)) }, onPressed: { onRevealAndReschedule(); AudioPlayer.shared.previousTrack() })
+                PlayerButton(label: { Image(systemName: player.isPlaying ? "pause.fill" : "play.fill").font(.system(size: 38, weight: .regular)).contentTransition(.symbolEffect(.replace)) }, onPressed: { onRevealAndReschedule(); AudioPlayer.shared.togglePlayPause() })
+                PlayerButton(label: { Image(systemName: "forward.fill").font(.system(size: 24, weight: .semibold)) }, onPressed: { onRevealAndReschedule(); AudioPlayer.shared.nextTrack() })
             }
-            .playerButtonStyle(.transport)       // ⬅️ apply the shared look
-            .foregroundStyle(.white)
-
+            .playerButtonStyle(.transport).foregroundStyle(.white)
+            .offset(y: controlsVisible ? 0 : 45)
+            .animation(
+                controlsVisible
+                    ? .spring(response: 0.35, dampingFraction: 0.85).delay(0.03) // MODIFIED: Tighter delay
+                    : .spring(response: 0.40, dampingFraction: 0.90),      // (This is the middle value, unchanged)
+                value: controlsVisible
+            )
+            
+            // MARK: 3. Volume slider and bottom buttons group
             VStack(spacing: 20) {
-                // MARK: EDIT 4 - START
                 ElasticSlider(
-                    value: volumeBinding,
-                    in: 0...1,
-                    leadingLabel: {
-                        Image(systemName: "speaker.fill")
-                            .padding(.trailing, 10)
-                    },
-                    trailingLabel: {
-                        Image(systemName: "speaker.wave.3.fill")
-                            .padding(.leading, 10)
-                    }
+                    value: volumeBinding, in: 0...1,
+                    leadingLabel: { Image(systemName: "speaker.fill").padding(.trailing, 10) },
+                    trailingLabel: { Image(systemName: "speaker.wave.3.fill").padding(.leading, 10) }
                 )
-                .sliderStyle(.volume)
-                .frame(height: 50)
-                .padding(.horizontal, 16)
-                // MARK: EDIT 4 - END
+                .sliderStyle(.volume).frame(height: 50).padding(.horizontal, 16)
+                
                 bottomActionButtons
-            }.padding(.top, 10)
+            }
+            .padding(.top, 10)
+            .offset(y: controlsVisible ? 0 : 60)
+            .animation(
+                controlsVisible
+                    ? .spring(response: 0.35, dampingFraction: 0.85)             // (Starts first, no delay needed)
+                    : .spring(response: 0.45, dampingFraction: 0.90),      // MODIFIED: Closer duration
+                value: controlsVisible
+            )
         }
     }
+    
+        // --- MINOR CHANGES HERE ---
+        private var bottomActionButtons: some View {
+            HStack {
+                Spacer()
+                Button(action: onLyricsToggle) {
+                    Image(systemName: "quote.bubble")
+                        .font(.title3)
+                        .foregroundStyle(showingLyrics ? .black : Color.white.opacity(0.6))
+                        .frame(width: 38, height: 38)
+                        .background(Circle().fill(showingLyrics ? Color.white : Color.clear))
+                }
+                .buttonStyle(.plain)
+                .disabled(!hasLyricsAvailable)
+                // Removed individual .offset and .animation modifiers
+                
+                Spacer()
+                CustomAirPlayButton(symbolName: routeSymbolName)
+                    .padding(.horizontal, CGFloat(4))
+                // Removed individual .offset and .animation modifiers
+                
+                Spacer()
+                Button(action: onQueueToggle) {
+                    Image(systemName: "list.bullet")
+                        .font(.title3)
+                        .foregroundStyle(showingQueue ? .black : Color.white.opacity(0.6))
+                        .frame(width: 38, height: 38)
+                        .background(Circle().fill(showingQueue ? Color.white : Color.clear))
+                }
+                .buttonStyle(.plain)
+                // Removed individual .offset and .animation modifiers
+                
+                Spacer()
+            }.foregroundStyle(.white)
+        }
 
-    private var bottomActionButtons: some View {
-        HStack {
-            Spacer()
-            Button(action: onLyricsToggle) {
-                Image(systemName: "quote.bubble")
-                    .font(.title3)
-                    .foregroundStyle(showingLyrics ? .black : Color.white.opacity(0.6))
-                    .frame(width: 38, height: 38)
-                    .background(Circle().fill(showingLyrics ? Color.white : Color.clear))
-            }
-            .buttonStyle(.plain)
-            .disabled(!hasLyricsAvailable)
-            Spacer()
-            CustomAirPlayButton(symbolName: routeSymbolName)
-                .padding(.horizontal, CGFloat(4))
-            Spacer()
-            Button(action: onQueueToggle) {
-                Image(systemName: "list.bullet")
-                    .font(.title3)
-                    .foregroundStyle(showingQueue ? .black : Color.white.opacity(0.6))
-                    .frame(width: 38, height: 38)
-                    .background(Circle().fill(showingQueue ? Color.white : Color.clear))
-            }
-            .buttonStyle(.plain)
-            Spacer()
-        }.foregroundStyle(.white)
+        private func timeString(_ t: TimeInterval) -> String {
+            guard t.isFinite && !t.isNaN && t >= 0 else { return "0:00" }
+            let seconds = Int(t.rounded())
+            return String(format: "%d:%02d", seconds / 60, seconds % 60)
+        }
     }
-
-    private func timeString(_ t: TimeInterval) -> String {
-        guard t.isFinite && !t.isNaN && t >= 0 else { return "0:00" }
-        let seconds = Int(t.rounded())
-        return String(format: "%d:%02d", seconds / 60, seconds % 60)
-    }
-}
-
 
 // MARK: - CHANGE 1: New View for the Controls Background "Slab"
 private struct ControlsSlabView: View {
@@ -663,11 +645,13 @@ struct NowPlayingView: View {
     @State private var hasLyricsAvailable: Bool = false
 
     @State private var isLoadingAutoplay: Bool = false
-    @State private var autoplayTopGap: CGFloat = 12
+    @State private var autoplayTopGap: CGFloat = -125
 
     @State private var isReorderingQueue: Bool = false
     @State private var queueScrollView: UIScrollView? = nil
-
+    
+    @State private var showAutoplaySection: Bool = false
+    
     @State private var dismissDragOffset: CGFloat = 0
     @State private var isDismissingInteractively = false
     
@@ -738,12 +722,11 @@ struct NowPlayingView: View {
         return 0
     }
     
-    private var finalSlabOpacity: Double {
-        let isTransparentDueToChrome = isMainMode && hasHeroPoster && posterVisible && hasCoverNPTag
-        if isTransparentDueToChrome {
-            return 0.0
+    private var cascadingOffset: CGFloat {
+        if (showingLyrics || showingQueue) && !controlsVisible {
+            return panelHeight + 100
         }
-        return controlsAndSlabOpacity
+        return 0
     }
 
     private var artworkURL: URL? {
@@ -1041,22 +1024,21 @@ struct NowPlayingView: View {
                 .animation(.easeInOut(duration: posterFadeDuration), value: posterVisible)
 
             // MARK: - Layer 2: Controls Slab
-            if !isEmptyState {
+            if !isEmptyState && (showingLyrics || showingQueue) {
                 ControlsSlabView(
                     controlsTint: gradBottom,
                     controlsSolidOpacity: controlsSolidOpacity,
                     controlsQuickFadeHeight: controlsQuickFadeHeight,
                     controlsQuickFadeTopOpacity: controlsQuickFadeTopOpacity,
                     controlsSolidHeight: controlsSolidHeight,
-                    controlsChromeTransparent: isMainMode && hasHeroPoster && posterVisible && hasCoverNPTag
+                    controlsChromeTransparent: false
                 )
-                .offset(y: controlsAndSlabYOffset)
-                .opacity(finalSlabOpacity)
+                .ignoresSafeArea(edges: .bottom)
+                .opacity(1.0) // Always fully opaque when visible in lyrics/queue mode
                 .animation(.spring(response: 0.45, dampingFraction: 0.85), value: controlsVisible)
-                .animation(.easeInOut(duration: 0.3), value: isMainMode)
             }
             
-            // MARK: - Layer 3: Poster Video
+            // MARK: - Layer 2: Poster Video
             if hasHeroPoster, let player = heroPosterPlayer {
                 VideoPlayerView(
                     player: player,
@@ -1088,37 +1070,56 @@ struct NowPlayingView: View {
             VolumeControlView(volume: $volume).frame(width: 0, height: 0).hidden()
             contentBody
 
-            // MARK: - Layer 4: Controls UI
+            // MARK: - Layer 3: Controls UI + Slab Background
             if !isEmptyState {
-                UnifiedControlsView(
-                    player: player,
-                    mode: showingLyrics ? .lyrics : (showingQueue ? .queue : .main),
-                    visible: controlsVisible && !isReorderingQueue,
-                    showingLyrics: showingLyrics,
-                    showingQueue: showingQueue,
-                    artworkURL: artworkURL,
-                    volume: $volume,
-                    progressBinding: progressSecondsBinding,
-                    volumeBinding: volumeBinding,
-                    onLyricsToggle: { toggleLyrics() },
-                    onQueueToggle: { toggleQueue() },
-                    onRevealAndReschedule: revealControlsAndReschedule,
-                    hasLyricsAvailable: hasLyricsAvailable,
-                    routeSymbolName: routeSymbolName,
-                    titleReveal: 1 - animationProgress,
-                    isFaved: isFaved,
-                    onFavoriteTap: onFavoriteTap,
-                    createStation: createStation,
-                    goToAlbum: goToAlbum,
-                    goToArtist: goToArtist,
-                    download: download
-                )
+                ZStack(alignment: .bottom) {
+                    // Slab background (renders first, behind controls)
+                    if showingLyrics || showingQueue {
+                        ControlsSlabView(
+                            controlsTint: gradBottom,
+                            controlsSolidOpacity: controlsSolidOpacity,
+                            controlsQuickFadeHeight: controlsQuickFadeHeight,
+                            controlsQuickFadeTopOpacity: controlsQuickFadeTopOpacity,
+                            controlsSolidHeight: controlsSolidHeight,
+                            controlsChromeTransparent: false
+                        )
+                        .opacity(1.0)
+                    }
+                    
+                    // Controls UI (renders on top)
+                    UnifiedControlsView(
+                        player: player,
+                        mode: showingLyrics ? .lyrics : (showingQueue ? .queue : .main),
+                        visible: controlsVisible && !isReorderingQueue,
+                        showingLyrics: showingLyrics,
+                        showingQueue: showingQueue,
+                        artworkURL: artworkURL,
+                        controlsVisible: controlsVisible,
+                        volume: $volume,
+                        progressBinding: progressSecondsBinding,
+                        volumeBinding: volumeBinding,
+                        onLyricsToggle: { toggleLyrics() },
+                        onQueueToggle: { toggleQueue() },
+                        onRevealAndReschedule: revealControlsAndReschedule,
+                        hasLyricsAvailable: hasLyricsAvailable,
+                        routeSymbolName: routeSymbolName,
+                        titleReveal: 1 - animationProgress,
+                        isFaved: isFaved,
+                        onFavoriteTap: onFavoriteTap,
+                        createStation: createStation,
+                        goToAlbum: goToAlbum,
+                        goToArtist: goToArtist,
+                        download: download
+                    )
+                    .offset(y: controlsAndSlabYOffset)
+                    .opacity(controlsAndSlabOpacity)
+                    .animation(.spring(response: 0.40, dampingFraction: 0.85), value: controlsVisible)
+                    .animation(.easeInOut(duration: 0.3), value: showingLyrics)
+                    .animation(.easeInOut(duration: 0.3), value: showingQueue)
+                    .animation(.easeInOut(duration: 0.3), value: animationProgress)
+                }
                 .offset(y: controlsAndSlabYOffset)
-                .opacity(controlsAndSlabOpacity)
-                .animation(.spring(response: 0.45, dampingFraction: 0.85), value: controlsVisible)
-                .animation(.easeInOut(duration: 0.3), value: showingLyrics)
-                .animation(.easeInOut(duration: 0.3), value: showingQueue)
-                .animation(.easeInOut(duration: 0.3), value: animationProgress)
+                .animation(.spring(response: 0.40, dampingFraction: 0.85), value: controlsVisible)
             }
 
             // MARK: - Top Overlays
@@ -1322,7 +1323,22 @@ struct NowPlayingView: View {
     }
     
     private var queueFullScreen: some View {
-        let topInset: CGFloat = 10, headerHeight: CGFloat = 40, pillsHeight: CGFloat = 145, spacingBelowHeader: CGFloat = 110
+        // These match your current layout
+        let topInset: CGFloat = 10
+        let headerHeight: CGFloat = 20
+        let pillsHeight: CGFloat = 145
+        let spacingBelowHeader: CGFloat = 65
+        let pillsOffsetY: CGFloat = -100  // your pills row offset in FixedQueueTopChrome
+
+        // Where header background should end (bottom of pills block after its offset)
+        let cutoff = max(0, topInset + headerHeight + (pillsHeight + pillsOffsetY))
+
+        // KNOB 1: Move the occlusion earlier (positive pushes it lower on screen)
+        let cutoffNudge: CGFloat = 110   // try 16–32
+
+        // KNOB 2: Quick fade band thickness at the bottom of the header background
+        let headerQuickFadeHeight: CGFloat = 20  // try 80–140
+
         let chromeHeight = topInset + headerHeight + pillsHeight + spacingBelowHeader
         let contentOpacity = max(0, (animationProgress - 0.5) * 2)
 
@@ -1339,12 +1355,13 @@ struct NowPlayingView: View {
                 panelSafeBottom: panelSafeBottom,
                 controlsLift: controlsLift,
                 autoplayTopGap: autoplayTopGap,
+                showAutoplaySection: showAutoplaySection,
                 toggleAutoPlay: toggleAutoPlay
             )
             .compositingGroup()
-            .mask(queueMaskView)
+            .mask(queueMaskView(cutoff: cutoff + cutoffNudge, fadeHeight: headerQuickFadeHeight))
             .opacity(contentOpacity)
-            
+
             FixedQueueTopChrome(
                 player: player,
                 artworkURL: artworkURL,
@@ -1357,34 +1374,29 @@ struct NowPlayingView: View {
                 queueHeaderTopInset: queueHeaderTopInset,
                 queueHeaderHeight: queueHeaderHeight,
                 queueHeaderYOffset: queueHeaderYOffset,
-                queueHeaderBGHeight: queueHeaderBGHeight,
-                queueHeaderBGTopOpacity: queueHeaderBGTopOpacity,
-                queueHeaderBGFadeStop: queueHeaderBGFadeStop
+                queueHeaderBGHeight: cutoff + cutoffNudge,            // total header background height
+                queueHeaderQuickFadeHeight: headerQuickFadeHeight,    // length of quick fade band
+                queueHeaderBGTopOpacity: queueHeaderBGTopOpacity,     // opacity of the solid part
+                queueHeaderBGFadeStop: queueHeaderBGFadeStop          // unused now; kept for compat
             )
             .zIndex(1)
             .gesture(dismissDragGesture)
         }
     }
 
-    private var queueMaskView: some View {
-        let queueTopFadeHeight: CGFloat = 140
-        let queueTopFadeSharpness: CGFloat = 0.15
-        
+    private func queueMaskView(cutoff: CGFloat, fadeHeight: CGFloat) -> some View {
+        let topHiddenHeight = max(0, cutoff - fadeHeight)
         return VStack(spacing: 0) {
-            LinearGradient(
-                stops: [
-                    .init(color: .clear, location: 0.0),
-                    .init(color: .clear, location: 1.0 - queueTopFadeSharpness),
-                    .init(color: .black, location: 1.0)
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .frame(height: queueTopFadeHeight)
-            .padding(.top, headerHeight * 0.4)
-            
+            // Fully hidden region (rows completely under the header)
+            Color.clear.frame(height: topHiddenHeight)
+
+            // Quick fade-out band at the bottom of the header
+            LinearGradient(colors: [.clear, .black], startPoint: .top, endPoint: .bottom)
+                .frame(height: fadeHeight)
+
+            // Fully visible list below
             Rectangle().fill(Color.black)
-            
+
             if !controlsVisible {
                 LinearGradient(colors: [.black, .clear], startPoint: .top, endPoint: .bottom)
                     .frame(height: 110)
@@ -1539,23 +1551,55 @@ struct NowPlayingView: View {
             }.store(in: &cancellables)
     }
     private func toggleAutoPlay() {
-        if player.autoplayEnabled { AudioPlayer.shared.setAutoplay(enabled: false, items: []) }
-        else { AudioPlayer.shared.setAutoplay(enabled: true, items: []); loadAutoplay() }
+        if player.autoplayEnabled {
+            // Turning OFF: fade out first, then disable
+            withAnimation(.easeOut(duration: 0.1)) {
+                showAutoplaySection = false
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                AudioPlayer.shared.setAutoplay(enabled: false, items: [])
+            }
+        } else {
+            // Turning ON: enable, load, then fade in
+            AudioPlayer.shared.setAutoplay(enabled: true, items: [])
+            loadAutoplay()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                withAnimation(.easeIn(duration: 0.1)) {
+                    showAutoplaySection = true
+                }
+            }
+        }
     }
+    
+    // Add this function in NowPlayingView, after toggleAutoPlay()
     private func loadAutoplay() {
-        guard let track = player.currentTrack else { return }; isLoadingAutoplay = true
+        guard let track = player.currentTrack else { return }
+        isLoadingAutoplay = true
+        
         func mix(for seed: String, limit: Int = 50) -> AnyPublisher<[JellyfinTrack], Never> {
             JellyfinAPIService.shared.fetchInstantMix(itemId: seed, limit: limit)
-                .map { tracks in return tracks }.replaceError(with: []).eraseToAnyPublisher()
+                .map { tracks in return tracks }
+                .replaceError(with: [])
+                .eraseToAnyPublisher()
         }
+        
         let first = mix(for: track.id, limit: 60)
         let publisher: AnyPublisher<[JellyfinTrack], Never>
+        
         if let albumId = track.albumId {
-            publisher = first.flatMap { $0.isEmpty ? mix(for: albumId, limit: 60) : Just($0).eraseToAnyPublisher() }.eraseToAnyPublisher()
-        } else { publisher = first }
-        publisher.receive(on: DispatchQueue.main).sink { tracks in
-            self.isLoadingAutoplay = false; AudioPlayer.shared.setAutoplay(enabled: AudioPlayer.shared.autoplayEnabled, items: tracks)
-        }.store(in: &cancellables)
+            publisher = first.flatMap { $0.isEmpty ? mix(for: albumId, limit: 60) : Just($0).eraseToAnyPublisher() }
+                .eraseToAnyPublisher()
+        } else {
+            publisher = first
+        }
+        
+        publisher
+            .receive(on: DispatchQueue.main)
+            .sink { tracks in
+                self.isLoadingAutoplay = false
+                AudioPlayer.shared.setAutoplay(enabled: AudioPlayer.shared.autoplayEnabled, items: tracks)
+            }
+            .store(in: &cancellables)
     }
     
     func lerp(_ a: CGFloat, _ b: CGFloat, _ t: CGFloat) -> CGFloat { a + (b - a) * t }
@@ -1623,32 +1667,42 @@ private struct FixedQueueTopChrome: View {
     let onHistoryToggle: () -> Void
     @Binding var autoplayOn: Bool
     let onAutoplayToggle: () -> Void
-    
+
     let queueHeaderTopInset: CGFloat
     let queueHeaderHeight: CGFloat
     let queueHeaderYOffset: CGFloat
-    let queueHeaderBGHeight: CGFloat
-    let queueHeaderBGTopOpacity: Double
-    let queueHeaderBGFadeStop: CGFloat
+
+    // Header background geometry + tuning
+    let queueHeaderBGHeight: CGFloat              // total height (solid + fade)
+    let queueHeaderQuickFadeHeight: CGFloat       // quick fade band at the bottom
+    let queueHeaderBGTopOpacity: Double           // opacity of solid portion
+    let queueHeaderBGFadeStop: CGFloat            // (kept for compatibility; unused)
 
     var body: some View {
         ZStack(alignment: .top) {
-            // BACKGROUND (full-bleed to top, quick fade down)
+            // BACKGROUND: solid + quick fade at bottom
             VStack(spacing: 0) {
+                // Solid region (fills from top down to start of fade)
+                Rectangle()
+                    .fill(Color.black.opacity(queueHeaderBGTopOpacity))
+                    .frame(height: max(0, queueHeaderBGHeight - queueHeaderQuickFadeHeight))
+
+                // Quick fade band to transparent at the bottom edge of the header
                 LinearGradient(
-                    stops: [
-                        .init(color: Color.black.opacity(queueHeaderBGTopOpacity), location: 0.0),
-                        .init(color: Color.black.opacity(0.0),                      location: max(0, min(1, queueHeaderBGFadeStop)))
+                    colors: [
+                        Color.black.opacity(queueHeaderBGTopOpacity),
+                        Color.black.opacity(0)
                     ],
-                    startPoint: .top, endPoint: .bottom
+                    startPoint: .top,
+                    endPoint: .bottom
                 )
-                .frame(height: queueHeaderBGHeight)
-                .ignoresSafeArea(edges: .top)
+                .frame(height: queueHeaderQuickFadeHeight)
+
                 Spacer(minLength: 0)
             }
             .allowsHitTesting(false)
 
-            // CONTENT
+            // CONTENT (unchanged)
             VStack(spacing: 0) {
                 Color.clear.frame(height: queueHeaderTopInset)
                 UnifiedNowPlayingHeader(
@@ -1661,7 +1715,6 @@ private struct FixedQueueTopChrome: View {
                 .frame(height: queueHeaderHeight)
                 .offset(y: queueHeaderYOffset)
 
-                // Pills row (unchanged)
                 HStack {
                     Spacer(); QuickActionPillToggle(system: "clock", isOn: $showingHistory, action: onHistoryToggle); Spacer()
                     ShufflePill(player: player); Spacer(); RepeatPill(player: player); Spacer()
@@ -1670,7 +1723,7 @@ private struct FixedQueueTopChrome: View {
                 .padding(.horizontal, 16)
                 .frame(height: 145)
                 .offset(y: -100)
-                
+
                 Color.clear.frame(height: 110)
             }
         }
